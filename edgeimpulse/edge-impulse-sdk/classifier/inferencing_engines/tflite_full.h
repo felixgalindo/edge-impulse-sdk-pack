@@ -74,17 +74,32 @@ static EI_IMPULSE_ERROR get_interpreter(ei_learning_block_config_tflite_graph_t 
 #ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
         static uint8_t *external_model_buf = NULL;
         if (graph_config->model_loader) {
-            if (!external_model_buf) {
-                external_model_buf = (uint8_t*)ei_aligned_calloc(16, graph_config->model_size);
-            }
-            if (external_model_buf) {
-                size_t loaded_size = 0;
-                if (graph_config->model_loader(external_model_buf, graph_config->model_size, &loaded_size)) {
-                    graph_config->model = external_model_buf;
+            const unsigned char *direct_ptr = NULL;
+            size_t loaded_size = 0;
+
+            // Try zero-copy first (buf=NULL) — avoids RAM allocation on XIP flash
+            if (graph_config->model_loader(&direct_ptr, &loaded_size, NULL, 0)) {
+                if (direct_ptr) {
+                    graph_config->model = direct_ptr;
                     graph_config->model_size = loaded_size;
                 } else {
-                    ei_printf("External model loader failed, falling back to compiled model\n");
+                    // Copy mode: allocate buffer and call again
+                    if (!external_model_buf) {
+                        size_t alloc_size = loaded_size ? loaded_size : graph_config->model_size;
+                        external_model_buf = (uint8_t*)ei_aligned_calloc(16, alloc_size);
+                    }
+                    if (external_model_buf) {
+                        size_t buf_size = loaded_size ? loaded_size : graph_config->model_size;
+                        if (graph_config->model_loader(NULL, &loaded_size, external_model_buf, buf_size)) {
+                            graph_config->model = external_model_buf;
+                            graph_config->model_size = loaded_size;
+                        } else {
+                            ei_printf("External model loader (copy) failed, falling back to compiled model\n");
+                        }
+                    }
                 }
+            } else {
+                ei_printf("External model loader failed, falling back to compiled model\n");
             }
         }
 #endif

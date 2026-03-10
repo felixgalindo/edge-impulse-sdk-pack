@@ -293,17 +293,32 @@ typedef struct {
  * Callback type for external model loading (e.g., from flash storage).
  *
  * When EI_CLASSIFIER_EXTERNAL_MODEL_LOADING is defined, the inference engine
- * calls this function to obtain the model bytes instead of using the compiled-in
+ * calls this function to obtain the model instead of using the compiled-in
  * const array.  This enables runtime model updates (e.g., via binary delta
  * patching) without re-flashing firmware.
  *
- * @param buf       Destination buffer (allocated by caller, size = buf_size)
- * @param buf_size  Capacity of buf in bytes
- * @param model_size_out  Set by callback to actual model size loaded
+ * The callback has two modes:
+ *
+ * 1. **Zero-copy / flash-mapped (preferred):**
+ *    Set *model_out to a direct pointer to the model in flash/memory.
+ *    No RAM buffer is needed — the model is read directly from storage.
+ *    Example: MCU with XIP flash, or memory-mapped model slot.
+ *
+ * 2. **Copy into buffer:**
+ *    If model_out is set to NULL (or left unchanged), the caller will
+ *    allocate a RAM buffer and call this function again with buf != NULL.
+ *    Copy the model bytes into buf (up to buf_size).
+ *    Example: model in external SPI flash that isn't memory-mapped.
+ *
+ * @param model_out      If non-NULL on return, direct pointer to model (zero-copy)
+ * @param model_size_out Set to actual model size in bytes
+ * @param buf            RAM buffer for copy mode (NULL on first call)
+ * @param buf_size       Capacity of buf in bytes (0 on first call)
  * @return true on success, false on failure
  */
 typedef bool (*ei_external_model_loader_t)(
-    unsigned char *buf, size_t buf_size, size_t *model_size_out);
+    const unsigned char **model_out, size_t *model_size_out,
+    unsigned char *buf, size_t buf_size);
 
 /** Configuration for the tflite_micro.h/tflite_full.h */
 typedef struct {

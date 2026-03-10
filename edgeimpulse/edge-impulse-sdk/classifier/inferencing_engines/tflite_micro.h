@@ -132,23 +132,45 @@ static EI_IMPULSE_ERROR inference_tflite_setup(
 #ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
     // External model loading: call user-provided loader to read model from
     // flash or other storage, enabling runtime model updates without reflash.
+    //
+    // Two modes:
+    //   1. Zero-copy: loader returns a direct pointer (e.g., XIP flash) — no RAM used.
+    //   2. Copy: loader copies into a RAM buffer (e.g., external SPI flash).
     static uint8_t *external_model_buf = NULL;
     if (graph_config->model_loader) {
-        if (!external_model_buf) {
-            external_model_buf = (uint8_t*)ei_aligned_calloc(16, graph_config->model_size);
-            if (!external_model_buf) {
-                ei_printf("Failed to allocate external model buffer (%zu bytes)\n",
-                          graph_config->model_size);
-                return EI_IMPULSE_TFLITE_ARENA_ALLOC_FAILED;
-            }
-        }
+        const unsigned char *direct_ptr = NULL;
         size_t loaded_size = 0;
-        if (graph_config->model_loader(external_model_buf, graph_config->model_size, &loaded_size)) {
-            if (model_arr != external_model_buf || loaded_size != graph_config->model_size) {
-                tflite_first_run = true;
+
+        // First call: try zero-copy (buf=NULL)
+        if (graph_config->model_loader(&direct_ptr, &loaded_size, NULL, 0)) {
+            if (direct_ptr) {
+                // Zero-copy: model is directly readable from flash/memory
+                if (model_arr != (uint8_t*)direct_ptr || loaded_size != graph_config->model_size) {
+                    tflite_first_run = true;
+                }
+                graph_config->model = direct_ptr;
+                graph_config->model_size = loaded_size;
+            } else {
+                // Copy mode: allocate buffer and call again
+                if (!external_model_buf) {
+                    size_t alloc_size = loaded_size ? loaded_size : graph_config->model_size;
+                    external_model_buf = (uint8_t*)ei_aligned_calloc(16, alloc_size);
+                    if (!external_model_buf) {
+                        ei_printf("Failed to allocate external model buffer (%zu bytes)\n", alloc_size);
+                        return EI_IMPULSE_TFLITE_ARENA_ALLOC_FAILED;
+                    }
+                }
+                size_t buf_size = loaded_size ? loaded_size : graph_config->model_size;
+                if (graph_config->model_loader(NULL, &loaded_size, external_model_buf, buf_size)) {
+                    if (model_arr != external_model_buf || loaded_size != graph_config->model_size) {
+                        tflite_first_run = true;
+                    }
+                    graph_config->model = external_model_buf;
+                    graph_config->model_size = loaded_size;
+                } else {
+                    ei_printf("External model loader (copy) failed, falling back to compiled model\n");
+                }
             }
-            graph_config->model = external_model_buf;
-            graph_config->model_size = loaded_size;
         } else {
             ei_printf("External model loader failed, falling back to compiled model\n");
         }
