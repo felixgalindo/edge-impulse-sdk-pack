@@ -72,6 +72,11 @@ static EI_IMPULSE_ERROR get_interpreter(ei_learning_block_config_tflite_graph_t 
         ei_tflite_state_t *new_state = new ei_tflite_state_t();
 
 #ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
+        /* --- BEGIN TinyMLDelta changes (felixgalindo/edge-impulse-sdk-pack) ---
+         * Added: External model loading in get_interpreter().
+         *        Calls ei_external_model_loader_t to load model at runtime.
+         *        Supports zero-copy (XIP flash, no RAM) and copy-into-buffer.
+         * --- END TinyMLDelta changes --- */
         static uint8_t *external_model_buf = NULL;
         if (graph_config->model_loader) {
             const unsigned char *direct_ptr = NULL;

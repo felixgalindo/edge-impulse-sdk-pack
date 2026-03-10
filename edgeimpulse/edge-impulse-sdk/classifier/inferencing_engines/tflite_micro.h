@@ -130,12 +130,12 @@ static EI_IMPULSE_ERROR inference_tflite_setup(
     static uint8_t *model_arr = NULL;
 
 #ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
-    // External model loading: call user-provided loader to read model from
-    // flash or other storage, enabling runtime model updates without reflash.
-    //
-    // Two modes:
-    //   1. Zero-copy: loader returns a direct pointer (e.g., XIP flash) — no RAM used.
-    //   2. Copy: loader copies into a RAM buffer (e.g., external SPI flash).
+    /* --- BEGIN TinyMLDelta changes (felixgalindo/edge-impulse-sdk-pack) ---
+     * Added: External model loading in inference_tflite_setup().
+     *        Calls ei_external_model_loader_t to load model at runtime.
+     *        Supports zero-copy (XIP flash, no RAM) and copy-into-buffer.
+     *        Detects model changes to force interpreter reinitialization.
+     * --- END TinyMLDelta changes --- */
     static uint8_t *external_model_buf = NULL;
     if (graph_config->model_loader) {
         const unsigned char *direct_ptr = NULL;

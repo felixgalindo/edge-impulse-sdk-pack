@@ -289,6 +289,15 @@ typedef struct {
     uint32_t output_features_count;
 } ei_config_ethos_graph_t;
 
+/* --- BEGIN TinyMLDelta changes (felixgalindo/edge-impulse-sdk-pack) ---
+ * Added: ei_external_model_loader_t callback and model_loader field
+ *        in ei_config_tflite_graph_t.
+ * Purpose: Enable runtime model loading from external storage (flash,
+ *          file, etc.) instead of the compiled-in const array.
+ *          Supports zero-copy (XIP flash) and copy-into-buffer modes.
+ * Gated by: EI_CLASSIFIER_EXTERNAL_MODEL_LOADING compile flag.
+ * --- END TinyMLDelta changes --- */
+
 /**
  * Callback type for external model loading (e.g., from flash storage).
  *
