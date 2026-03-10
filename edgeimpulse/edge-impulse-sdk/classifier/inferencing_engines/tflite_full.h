@@ -71,6 +71,24 @@ static EI_IMPULSE_ERROR get_interpreter(ei_learning_block_config_tflite_graph_t 
         ei_config_tflite_graph_t *graph_config = (ei_config_tflite_graph_t*)block_config->graph_config;
         ei_tflite_state_t *new_state = new ei_tflite_state_t();
 
+#ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
+        static uint8_t *external_model_buf = NULL;
+        if (graph_config->model_loader) {
+            if (!external_model_buf) {
+                external_model_buf = (uint8_t*)ei_aligned_calloc(16, graph_config->model_size);
+            }
+            if (external_model_buf) {
+                size_t loaded_size = 0;
+                if (graph_config->model_loader(external_model_buf, graph_config->model_size, &loaded_size)) {
+                    graph_config->model = external_model_buf;
+                    graph_config->model_size = loaded_size;
+                } else {
+                    ei_printf("External model loader failed, falling back to compiled model\n");
+                }
+            }
+        }
+#endif
+
         auto new_model = tflite::FlatBufferModel::BuildFromBuffer((const char*)graph_config->model, graph_config->model_size);
         new_state->model = std::move(new_model);
         if (!new_state->model) {

@@ -289,12 +289,31 @@ typedef struct {
     uint32_t output_features_count;
 } ei_config_ethos_graph_t;
 
+/**
+ * Callback type for external model loading (e.g., from flash storage).
+ *
+ * When EI_CLASSIFIER_EXTERNAL_MODEL_LOADING is defined, the inference engine
+ * calls this function to obtain the model bytes instead of using the compiled-in
+ * const array.  This enables runtime model updates (e.g., via binary delta
+ * patching) without re-flashing firmware.
+ *
+ * @param buf       Destination buffer (allocated by caller, size = buf_size)
+ * @param buf_size  Capacity of buf in bytes
+ * @param model_size_out  Set by callback to actual model size loaded
+ * @return true on success, false on failure
+ */
+typedef bool (*ei_external_model_loader_t)(
+    unsigned char *buf, size_t buf_size, size_t *model_size_out);
+
 /** Configuration for the tflite_micro.h/tflite_full.h */
 typedef struct {
     uint16_t implementation_version;
     const unsigned char *model;
     size_t model_size;
     size_t arena_size;
+#ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
+    ei_external_model_loader_t model_loader;
+#endif
 } ei_config_tflite_graph_t;
 
 /** Configuration for the tflite_eon.h */

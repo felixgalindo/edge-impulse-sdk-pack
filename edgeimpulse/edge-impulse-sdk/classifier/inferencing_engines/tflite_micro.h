@@ -129,6 +129,32 @@ static EI_IMPULSE_ERROR inference_tflite_setup(
     static bool tflite_first_run = true;
     static uint8_t *model_arr = NULL;
 
+#ifdef EI_CLASSIFIER_EXTERNAL_MODEL_LOADING
+    // External model loading: call user-provided loader to read model from
+    // flash or other storage, enabling runtime model updates without reflash.
+    static uint8_t *external_model_buf = NULL;
+    if (graph_config->model_loader) {
+        if (!external_model_buf) {
+            external_model_buf = (uint8_t*)ei_aligned_calloc(16, graph_config->model_size);
+            if (!external_model_buf) {
+                ei_printf("Failed to allocate external model buffer (%zu bytes)\n",
+                          graph_config->model_size);
+                return EI_IMPULSE_TFLITE_ARENA_ALLOC_FAILED;
+            }
+        }
+        size_t loaded_size = 0;
+        if (graph_config->model_loader(external_model_buf, graph_config->model_size, &loaded_size)) {
+            if (model_arr != external_model_buf || loaded_size != graph_config->model_size) {
+                tflite_first_run = true;
+            }
+            graph_config->model = external_model_buf;
+            graph_config->model_size = loaded_size;
+        } else {
+            ei_printf("External model loader failed, falling back to compiled model\n");
+        }
+    }
+#endif
+
     if (model_arr != graph_config->model) {
         tflite_first_run = true;
         model_arr = (uint8_t*)graph_config->model;
